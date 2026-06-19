@@ -1,0 +1,11 @@
+[project]
+name = "day17-2a202600856-nguyenkhanhlinh"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "google-genai>=2.8.0",
+    "python-dotenv>=1.2.2",
+    "requests>=2.32.5",
+]

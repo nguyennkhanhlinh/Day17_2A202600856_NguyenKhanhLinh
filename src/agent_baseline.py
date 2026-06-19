@@ -40,15 +40,15 @@ class BaselineAgent:
         - Otherwise use a deterministic offline path.
         """
 
-        raise NotImplementedError
+        return self._reply_offline(thread_id, message)
 
     def token_usage(self, thread_id: str) -> int:
         # TODO: return cumulative agent token count for one thread.
-        raise NotImplementedError
+        return self.sessions.get(thread_id, SessionState()).token_usage
 
     def prompt_token_usage(self, thread_id: str) -> int:
         # TODO: estimate how much prompt context this baseline kept processing.
-        raise NotImplementedError
+        return self.sessions.get(thread_id, SessionState()).prompt_tokens_processed
 
     def compaction_count(self, thread_id: str) -> int:
         # Baseline has no compact memory.
@@ -64,7 +64,29 @@ class BaselineAgent:
         - Never remember facts across different thread ids
         """
 
-        raise NotImplementedError
+        session = self.sessions.setdefault(thread_id, SessionState())
+        session.messages.append({"role": "user", "content": message})
+
+        prompt_text = "\n".join(item["content"] for item in session.messages)
+        session.prompt_tokens_processed += estimate_tokens(prompt_text)
+
+        lowered = message.lower()
+        if any(word in lowered for word in ("tên", "ten", "nghề", "nghe", "ở đâu", "o dau", "style", "đồ uống", "do uong")):
+            answer = "Mình chỉ nhớ nội dung trong thread hiện tại, nên chưa chắc thông tin đó nếu bạn hỏi ở thread mới."
+        else:
+            answer = "Mình đã ghi nhận trong thread hiện tại."
+
+        session.messages.append({"role": "assistant", "content": answer})
+        output_tokens = estimate_tokens(answer)
+        session.token_usage += output_tokens
+
+        return {
+            "answer": answer,
+            "content": answer,
+            "thread_id": thread_id,
+            "agent_tokens": output_tokens,
+            "prompt_tokens": session.prompt_tokens_processed,
+        }
 
     def _maybe_build_langchain_agent(self):
         """Student TODO: optionally wire `create_agent` + `InMemorySaver` here.
@@ -72,4 +94,9 @@ class BaselineAgent:
         Use `build_chat_model(self.config.model)` so the baseline can run with any supported provider.
         """
 
-        raise NotImplementedError
+        if self.force_offline:
+            return None
+        try:
+            return build_chat_model(self.config.model)
+        except Exception:
+            return None

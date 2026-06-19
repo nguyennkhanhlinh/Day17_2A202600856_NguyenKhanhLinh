@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass
 from pathlib import Path
+
+from dotenv import load_dotenv
 
 from model_provider import ProviderConfig
 
@@ -48,5 +51,47 @@ def load_config(base_dir: Path | None = None) -> LabConfig:
     # - CUSTOM_BASE_URL / CUSTOM_API_KEY
     # TODO: create `root / "state"`.
     # TODO: choose sensible defaults for compact memory.
+    load_dotenv(root / ".env")
 
-    raise NotImplementedError("Students should implement load_config().")
+    state_dir = root / "state"
+    state_dir.mkdir(parents=True, exist_ok=True)
+
+    provider = os.getenv("LLM_PROVIDER", "custom")
+    model = ProviderConfig(
+        provider=provider,
+        model_name=os.getenv("LLM_MODEL", "gemini-3-flash"),
+        temperature=float(os.getenv("LLM_TEMPERATURE", "0")),
+        api_key=(
+            os.getenv("ANTCOAI_API_KEY")
+            or os.getenv("CUSTOM_API_KEY")
+            or os.getenv("OPENAI_API_KEY")
+            or os.getenv("GEMINI_API_KEY")
+            or os.getenv("ANTHROPIC_API_KEY")
+            or os.getenv("OPENROUTER_API_KEY")
+        ),
+        base_url=(
+            os.getenv("ANTCOAI_BASE_URL")
+            or os.getenv("CUSTOM_BASE_URL")
+            or os.getenv("OPENAI_BASE_URL")
+            or os.getenv("OLLAMA_BASE_URL")
+            or os.getenv("OPENROUTER_BASE_URL")
+        ),
+    )
+
+    judge_model = ProviderConfig(
+        provider=os.getenv("JUDGE_PROVIDER", provider),
+        model_name=os.getenv("JUDGE_MODEL", model.model_name),
+        temperature=float(os.getenv("JUDGE_TEMPERATURE", "0")),
+        api_key=os.getenv("JUDGE_API_KEY", model.api_key),
+        base_url=os.getenv("JUDGE_BASE_URL", model.base_url),
+    )
+
+    return LabConfig(
+        base_dir=root,
+        data_dir=root / "data",
+        state_dir=state_dir,
+        compact_threshold_tokens=int(os.getenv("COMPACT_THRESHOLD_TOKENS", "1200")),
+        compact_keep_messages=int(os.getenv("COMPACT_KEEP_MESSAGES", "6")),
+        model=model,
+        judge_model=judge_model,
+    )
